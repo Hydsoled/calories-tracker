@@ -1,108 +1,105 @@
-# Database Design — Supabase PostgreSQL
+# DATABASE.md — Calorie Tracker
 
-This document is a schema contract, not an executable migration. Implement changes as ordered SQL migrations in `supabase/migrations/` and test policies before deployment.
+## Overview
+Supabase PostgreSQL stores **user data only**. The initial five predefined foods are hardcoded in `src/lib/constants/foods.ts`; there is **no `foods` table** and no nutrition-provider integration in the MVP.
+
+Use SQL migrations in `supabase/migrations/`. All user-owned tables require RLS.
 
 ## Tables
 
 ### `profiles`
-- `id uuid primary key references auth.users(id) on delete cascade`
-- `display_name text null`
-- `timezone text not null default 'UTC'` (validate against IANA timezone names at the application boundary)
-- `created_at timestamptz not null default now()`
-- `updated_at timestamptz not null default now()`
+| Column | Type | Rules |
+|---|---|---|
+| `id` | `uuid` | PK, FK to `auth.users(id)` ON DELETE CASCADE |
+| `display_name` | `text` | nullable |
+| `timezone` | `text` | NOT NULL, default `'UTC'` |
+| `created_at` | `timestamptz` | NOT NULL, default `now()` |
+| `updated_at` | `timestamptz` | NOT NULL, default `now()` |
 
-Create a profile at registration (trusted database trigger or idempotent server upsert).
-
-### `foods`
-- `id uuid primary key default gen_random_uuid()`
-- `name text not null`
-- `name_ka text null`
-- `description text null`
-- `reference_quantity numeric(12,3) not null check (reference_quantity > 0)`
-- `reference_unit text not null check (reference_unit in ('g','ml','piece','serving'))`
-- `calories_per_reference numeric(12,3) not null check (calories_per_reference >= 0)`
-- `source text not null default 'custom'`
-- `source_id text null`
-- `created_by uuid null references auth.users(id) on delete cascade`
-- `created_at timestamptz not null default now()`
-- `updated_at timestamptz not null default now()`
-
-`created_by IS NULL` means a curated global food; otherwise the food belongs to a user. External provider results should not become globally trusted entries without review.
-
-### `food_entries`
-- `id uuid primary key default gen_random_uuid()`
-- `user_id uuid not null references auth.users(id) on delete cascade`
-- `food_id uuid null references foods(id) on delete set null`
-- `food_name text not null` (snapshot)
-- `quantity numeric(12,3) not null check (quantity > 0)`
-- `unit text not null check (unit in ('g','ml','piece','serving'))`
-- `reference_quantity numeric(12,3) not null check (reference_quantity > 0)`
-- `calories_per_reference numeric(12,3) not null check (calories_per_reference >= 0)`
-- `total_calories numeric(12,3) not null check (total_calories >= 0)`
-- `is_manual_override boolean not null default false`
-- `meal_type text not null check (meal_type in ('breakfast','lunch','dinner','snack'))`
-- `consumed_at timestamptz not null`
-- `created_at timestamptz not null default now()`
-- `updated_at timestamptz not null default now()`
-
-Automatic total = `quantity / reference_quantity * calories_per_reference`. When `is_manual_override` is true, `total_calories` stores the explicitly entered total. Snapshot fields are immutable with respect to later changes in `foods`.
+Create a profile at signup using a safe database trigger or authenticated onboarding. Validate timezone against IANA identifiers in application code.
 
 ### `daily_goals`
-- `id uuid primary key default gen_random_uuid()`
-- `user_id uuid not null references auth.users(id) on delete cascade`
-- `effective_date date not null`
-- `calorie_goal integer not null check (calorie_goal > 0)`
-- `created_at timestamptz not null default now()`
-- `unique (user_id, effective_date)`
+| Column | Type | Rules |
+|---|---|---|
+| `id` | `uuid` | PK, default `gen_random_uuid()` |
+| `user_id` | `uuid` | NOT NULL, FK to `auth.users(id)` ON DELETE CASCADE |
+| `effective_date` | `date` | NOT NULL |
+| `calorie_goal` | `integer` | NOT NULL, CHECK `calorie_goal > 0` |
+| `created_at` | `timestamptz` | NOT NULL, default `now()` |
 
-For a day D, select the latest goal with `effective_date <= D`; if none exists, use 2000 kcal. A change entered today uses the user's local date, not the server's UTC date.
+Add UNIQUE `(user_id, effective_date)`. Resolve a day's goal with the latest row whose `effective_date <= selected_date`; if none exists, use the product default of 2,000 kcal. An update on a given date upserts that date's goal, without rewriting earlier dates.
+
+### `food_entries`
+| Column | Type | Rules |
+|---|---|---|
+| `id` | `uuid` | PK, default `gen_random_uuid()` |
+| `user_id` | `uuid` | NOT NULL, FK to `auth.users(id)` ON DELETE CASCADE |
+| `entry_type` | `text` | NOT NULL; `catalog`, `custom`, or `quick_add` |
+| `catalog_food_id` | `text` | nullable; matches hardcoded ID only |
+| `food_name` | `text` | NOT NULL |
+| `quantity` | `numeric(12,3)` | nullable; positive if present |
+| `unit` | `text` | nullable; `g`, `piece`, `serving`, or `ml` |
+| `base_quantity` | `numeric(12,3)` | nullable; positive if present |
+| `calories_per_base_quantity` | `numeric(12,3)` | nullable; nonnegative if present |
+| `total_calories` | `numeric(12,3)` | NOT NULL; nonnegative |
+| `is_total_override` | `boolean` | NOT NULL, default false |
+| `meal_type` | `text` | NOT NULL; breakfast/lunch/dinner/snack |
+| `consumed_at` | `timestamptz` | NOT NULL |
+| `local_date` | `date` | NOT NULL; saved using user's timezone |
+| `created_at` | `timestamptz` | NOT NULL, default `now()` |
+| `updated_at` | `timestamptz` | NOT NULL, default `now()` |
+
+Constraints:
+- `entry_type IN ('catalog', 'custom', 'quick_add')`.
+- `meal_type IN ('breakfast', 'lunch', 'dinner', 'snack')`.
+- `unit IS NULL OR unit IN ('g', 'piece', 'serving', 'ml')`.
+- `quantity IS NULL OR quantity > 0`.
+- `base_quantity IS NULL OR base_quantity > 0`.
+- `calories_per_base_quantity IS NULL OR calories_per_base_quantity >= 0`.
+- `total_calories >= 0`.
+- For `catalog` and `custom` entries, require quantity, unit, base quantity, and rate.
+- For `catalog`, require `catalog_food_id`; for `custom` and `quick_add`, require it to be null.
+- For `quick_add`, quantity/unit/base quantity/rate must be null and the total is supplied explicitly.
+- For calculated entries, `is_total_override = false`; manual total edits set it to true.
+
+Do not add a foreign key on `catalog_food_id`: its IDs are code-defined, not database records. The food name and nutritional values are snapshots, so past logs remain stable if catalog defaults change.
+
+## RLS policy model
+Enable RLS on `profiles`, `daily_goals`, and `food_entries`.
+
+For each table, create explicit SELECT, INSERT, UPDATE, DELETE policies as appropriate:
+- SELECT: `user_id = (select auth.uid())` (for profiles: `id = (select auth.uid())`).
+- INSERT: `WITH CHECK (user_id = (select auth.uid()))` (profiles: `id = (select auth.uid())`).
+- UPDATE: both `USING` and `WITH CHECK` enforce the same owner.
+- DELETE: `USING` enforces the same owner.
+
+For profile creation through a trigger, use a narrowly scoped, secure `SECURITY DEFINER` function with a fixed `search_path`, and review its privileges. Do not expose a service-role key to the browser.
 
 ## Indexes
-- `food_entries (user_id, consumed_at desc)`
-- `daily_goals (user_id, effective_date desc)` (covered partly by the unique constraint)
-- Search indexes for `foods.name` and `foods.name_ka` using `pg_trgm` if enabled; include owner/visibility filters in queries.
-- Optional unique `(source, source_id)` for non-null external identifiers, scoped appropriately.
+- `food_entries (user_id, local_date, consumed_at DESC)` for dashboard/history.
+- `daily_goals (user_id, effective_date DESC)` (the unique constraint also supports lookup).
+- `food_entries (user_id, consumed_at)` only if a real query requires it.
 
-## Row Level Security
-Enable RLS on `profiles`, `foods`, `food_entries`, and `daily_goals`.
+## Data access patterns
+**Today's logs:** `WHERE user_id = authenticated_user AND local_date = requested_local_date`.
 
-Policy requirements:
-- `profiles`: select/update only where `id = auth.uid()`; profile creation only for own ID.
-- `food_entries`: select/insert/update/delete only where `user_id = auth.uid()`; use both `USING` and `WITH CHECK` for writes.
-- `daily_goals`: same ownership rules as entries.
-- `foods`: select global foods (`created_by IS NULL`) or own foods (`created_by = auth.uid()`); insert/update/delete only owned rows, and never allow regular clients to create/edit global foods.
-- For `food_entries.food_id`, ensure the referenced food is global or owned by the same user; validate on the server and enforce with a database constraint/trigger if necessary.
-- Avoid overly broad grants to `anon` and `authenticated` roles.
+**Daily total:** `SUM(total_calories)` for that day; default to zero when there are no entries.
 
-Example policy pattern (adapt to each table):
-```sql
-create policy "read own entries" on public.food_entries
-for select to authenticated
-using (user_id = (select auth.uid()));
+**Goal:** latest `daily_goals` row with `effective_date <= requested_local_date`; otherwise 2,000 kcal.
 
-create policy "insert own entries" on public.food_entries
-for insert to authenticated
-with check (user_id = (select auth.uid()));
+**Streak:** retrieve distinct `local_date` values with entries, ordered descending. Count consecutive dates ending today, or yesterday when today has no logs; longest streak uses all available logged dates.
 
-create policy "update own entries" on public.food_entries
-for update to authenticated
-using (user_id = (select auth.uid()))
-with check (user_id = (select auth.uid()));
+## Date/time policy
+- `consumed_at` is a UTC-normalized instant (`timestamptz`).
+- `local_date` is the calendar date in the user's selected IANA timezone at save time.
+- The server derives `local_date` from the verified profile timezone and selected timestamp/date, never blindly trusts a submitted date.
+- If a user changes timezone, existing `local_date` snapshots remain unchanged in the MVP. Editing an entry may recompute its `local_date` based on the new timezone.
+- Use calendar-day arithmetic, not 24-hour timestamp subtraction, for streaks.
 
-create policy "delete own entries" on public.food_entries
-for delete to authenticated
-using (user_id = (select auth.uid()));
-```
-
-## Daily totals and streaks
-- Do not store mutable aggregate totals as the source of truth in MVP.
-- Derive daily totals from `food_entries.total_calories` for the user's local date range.
-- Derive streaks from distinct local calendar dates containing at least one entry.
-- Current streak ends today if logged, otherwise yesterday if logged; otherwise zero.
-- Recompute after historical changes and timezone updates.
-
-## Migrations and testing
-- Use additive migrations when possible; never edit already-applied production migrations.
-- Seed global Georgian food examples with documented approximate values and sources; do not imply universal accuracy.
-- Test unauthenticated access, cross-user access, custom-food visibility, update ownership, and delete behavior.
-- Verify indexes using realistic query plans when data grows.
+## Migration and testing rules
+- All schema changes require versioned SQL migrations.
+- Test policies with two different authenticated users.
+- Test catalog, custom, and Quick Add entry constraints.
+- Test manual overrides and historical snapshot persistence.
+- Test date boundaries and streak changes after deleting a day's only entry.
+- Never perform schema mutations from browser code.

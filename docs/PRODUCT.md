@@ -1,79 +1,83 @@
-# Product Requirements — Calorie Tracker
+# PRODUCT.md — Calorie Tracker
 
 ## Purpose
-A mobile-first calorie tracker where users can log food in seconds, monitor daily energy intake, and build consistent logging habits. The initial release supports English and Georgian food names and Georgian dishes.
+Build a fast, mobile-first calorie logging app. The MVP uses **five hardcoded food definitions**, not an external nutrition API. Users can log food, override calorie estimates, enter calories directly, set daily goals, and view history and logging streaks.
 
 ## MVP user journeys
-1. Register or sign in with email and password.
-2. Set a daily calorie goal (default 2,000 kcal; editable).
-3. Search for a food by English or Georgian name, or create a custom food.
-4. Choose quantity and unit (g, ml, piece, serving), review the calorie estimate, optionally override it, and save.
-5. See today's consumed, remaining, and goal calories immediately.
-6. Edit/delete food logs, including logs for previous dates.
-7. View daily history and a consecutive-day logging streak.
-8. Adjust timezone and profile preferences.
+1. Register, sign in, and sign out with Supabase Auth.
+2. Set a daily calorie goal (default 2,000 kcal; editable in Settings).
+3. On the dashboard, see today's goal, consumed calories, remaining calories, and streak.
+4. Tap **Add Food**, search a small built-in catalog in English or Georgian, choose a quantity, review automatically calculated calories, optionally override calories, and save.
+5. Use **Quick Add** to enter a calorie amount without selecting a catalog food.
+6. Edit or delete a log; totals update immediately.
+7. Browse past days and their food entries; edit entries on those dates.
 
-## Routes
-- `/`: public landing page.
-- `/login`, `/register`, `/forgot-password`: authentication.
-- `/dashboard`: daily summary, today's entries, quick-add action, streak.
-- `/food`: food search and custom food creation; add/edit entries via sheet or dialog.
-- `/history`: month calendar and selected-day entries.
-- `/settings`: daily goal, timezone, display name, logout.
+## Hardcoded food catalog
+The source of truth for initial food definitions is `src/lib/constants/foods.ts`. These values are **approximate examples**, not guaranteed nutrition facts. The cooking state is part of the name.
 
-## Daily dashboard
-- Display goal, consumed, remaining (`goal - consumed`), and percentage (`consumed / goal * 100`).
-- A negative remaining value is valid; do not hide over-goal consumption.
-- Group entries by meal type: breakfast, lunch, dinner, snack.
-- Include an inviting empty state and prominent Add Food action.
-- Default to the user's current local date, determined from their configured IANA timezone.
+| ID | English name | Georgian name | Base serving | Default kcal |
+|---|---|---|---|---:|
+| chicken-breast | Chicken breast, cooked, skinless | ქათმის ფილე | 100 g | 165 |
+| lean-beef | Lean beef, cooked | საქონლის ხორცი | 100 g | 200 |
+| white-rice | White rice, cooked | მოხარშული ბრინჯი | 100 g | 130 |
+| egg | Egg, large | კვერცხი | 1 piece | 72 |
+| khinkali | Khinkali | ხინკალი | 1 piece | 80 |
 
-## Food search and catalog
-- Search both `name` and `name_ka`, including partial matches.
-- Include starter entries for khinkali/ხინკალი, khachapuri/ხაჭაპური, mtsvadi/მწვადი, lobiani/ლობიანი, yogurt, bread, and common staples.
-- Local catalog is the primary source. An external nutrition API is optional and must be normalized, rate-limited, and cached before display.
-- Clearly label calorie values as estimates and include a source when available. Do not present invented estimates as verified values.
-- Foods may be global or user-owned. Users can create private foods.
+A food definition contains `id`, `name`, `nameKa`, `baseQuantity`, `unit`, and `caloriesPerBaseQuantity`. Do not add an external nutrition provider or a global foods table for the MVP.
 
-## Logging behavior
-- Units: grams, milliliters, pieces, servings. Never convert ml to g without a known density.
-- Gram-based formula: `(grams / 100) * kcal_per_100g`.
-- Piece/serving formula: `quantity * kcal_per_unit`.
-- The UI must allow changing quantity, per-unit calories, and total calories.
-- A manual total override takes precedence until the user explicitly returns to automatic calculation; clearly indicate override mode.
-- Example: six khinkali with an editable estimated kcal/piece value. No single fixed calorie count should be treated as authoritative.
-- Store the food name, quantity, unit, calorie rate, total, and optional override as snapshots on each entry so later catalog changes do not rewrite history.
-- Support editing and deleting any owned entry and selecting a consumption date/time.
-- Do not allow negative calories or nonpositive quantities; apply sensible upper bounds to reject accidental entries.
-- Use decimal-safe calculations and round only for presentation or at a documented storage boundary.
+## Calculation and editing rules
+- For a food with a 100 g base: `calories = quantity / 100 * caloriesPerBaseQuantity`.
+- For a piece-based food: `calories = quantity * caloriesPerBaseQuantity`.
+- Example: 250 g cooked chicken breast = 412.5 kcal; display 413 kcal when rounding to whole calories.
+- Example: six khinkali at 80 kcal/piece = 480 kcal.
+- Users can edit the **calories per base serving** before saving, and the total recalculates.
+- Users can explicitly override **total calories**; if they do, that explicit total wins until they choose to recalculate from quantity/rate.
+- Persist the effective calorie rate, total calories, quantity, and display name as a snapshot. Later catalog edits must not change old logs.
+- Accept decimal gram quantities and positive piece quantities; reject negative or non-finite numbers. Use decimal-safe arithmetic for persisted totals.
+- Label catalog values as estimates; preparation and portion sizes vary.
+- Quick Add accepts a nonnegative calorie amount and optional description; it does not require a food ID.
+- Users may log a custom named food with a quantity, unit, and calorie rate without adding it to a shared catalog.
+- Keep the default unit fixed for each built-in food in the MVP; no automatic g/ml conversion.
 
-## Goals
-- New users start with 2,000 kcal/day until they set a different target.
-- Goal changes take effect from the selected effective date (default today in the user's timezone), preserving earlier targets.
-- At most one goal change per user/effective date; updating that day's value replaces it.
-- For any day, use the most recent goal with `effective_date <= day`, otherwise the default.
-- Calorie tracking is informational; do not shame users for exceeding a goal.
+## Dashboard
+- Display selected local date, calorie goal, consumed, remaining (`goal - consumed`), and progress.
+- Remaining may be negative; over-goal consumption must remain visible.
+- List logs grouped by meal type (`breakfast`, `lunch`, `dinner`, `snack`) or in chronological order.
+- Support edit/delete, empty states, loading, and clear save errors.
+- Add Food and Quick Add must be easy to reach on small screens.
+
+## Goals and dates
+- A new user starts with 2,000 kcal/day until they set a goal.
+- Store goal changes with an **effective date**. For a day, use the latest goal whose effective date is on or before that day.
+- Each user has a configured IANA timezone (default `UTC`, editable). Interpret calendar days in that timezone, not the server's timezone.
+- A goal is a reference target, not a judgment or medical recommendation.
 
 ## Streaks
-- A logged day is a calendar day with at least one valid food entry, based on the user's configured timezone.
-- Current streak: consecutive logged days ending today, or ending yesterday if today has no log yet.
-- Longest streak: longest historical sequence of logged calendar days.
-- Editing or deleting entries can retroactively change streaks.
-- Logging streaks are independent of meeting the calorie goal.
-- Timezone changes can change historical day grouping; recompute accordingly.
+- A logged day is a local calendar day containing at least one saved entry, including Quick Add.
+- Current streak counts consecutive logged days ending **today**, or ending **yesterday** when today has no logs yet.
+- A missing older day breaks the streak. Deleting the only entry on a day changes the streak.
+- Longest streak is the longest consecutive logged-day sequence in available history.
+- Streaks measure logging consistency, not whether the calorie goal was met.
 
-## History
-- Month navigation with days containing logs and their daily totals.
-- Select a day to inspect, edit, or delete its entries and see the effective goal.
-- Query by bounded date ranges; never download an entire history for the calendar.
+## Pages
+| Route | Responsibility |
+|---|---|
+| `/` | Simple landing page |
+| `/login`, `/register` | Authentication |
+| `/dashboard` | Today's summary and entries |
+| `/food` | Catalog search, custom entry, Quick Add |
+| `/history` | Calendar and day details |
+| `/settings` | Goal, timezone, profile, logout |
 
 ## Out of scope for MVP
-AI photo recognition, barcode scanning, macro tracking, push notifications, subscriptions, social features, medical advice, and offline sync.
+External nutrition APIs, barcode scanning, AI meal recognition, macronutrients, recipe analysis, meal photo recognition, recommendations, social features, and a food-catalog administration UI.
 
 ## Acceptance criteria
-- An authenticated user can add six khinkali, change calories per piece, and see correct totals without a refresh.
-- A user can log 360 g of yogurt at 84 kcal/100 g and see 302.4 kcal before display rounding.
-- Editing a food's catalog calories does not modify an existing log.
-- One user's private foods, logs, and goals are invisible to another user.
-- Historical edits correctly update daily totals and streaks.
-- The core flows work at 320 px mobile width and on desktop.
+- User A cannot read or modify User B's entries, goals, or profile.
+- Selecting 250 g chicken calculates 412.5 kcal before display rounding.
+- Editing khinkali to 90 kcal/piece at 6 pieces calculates 540 kcal.
+- Manual total override is preserved after save/reload.
+- Quick Add works without catalog selection.
+- History totals do not change when a hardcoded default is edited.
+- Daily summaries and streaks use the user's timezone.
+- Dashboard works at 320 px width without horizontal overflow.
