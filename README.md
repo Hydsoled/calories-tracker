@@ -4,7 +4,7 @@ Mobile-first Next.js App Router application. Product, architecture, database and
 
 ## Current phase
 
-Foundation and Supabase Auth: landing page, semantic theme, shadcn-style Button/Input primitives, registration, login, confirmation, password recovery/update, sign out, session-refresh Proxy and protected dashboard shell. The existing root `app/` structure is retained. Green and destructive tokens use darker shades than the suggested palette for readable text contrast. Phase 2 also provides the five-food catalog, bilingual search, validated snapshot inputs and decimal-safe calorie calculations. Phase 3 adds food logging screens and persistence; goals, dashboard totals, history calendar and streaks are deferred.
+Foundation and Supabase Auth: landing page, semantic theme, shadcn-style Button/Input primitives, registration, login, confirmation, password recovery/update, sign out, session-refresh Proxy and protected dashboard shell. The existing root `app/` structure is retained. Green and destructive tokens use darker shades than the suggested palette for readable text contrast. Phase 2 also provides the five-food catalog, bilingual search, validated snapshot inputs and decimal-safe calorie calculations. Phase 3 adds food logging screens and persistence; Phase 4 adds goals and dashboard totals; history calendar, streaks and profile/timezone editing are deferred.
 
 ## Setup
 
@@ -59,3 +59,14 @@ Required live gate before Phase 4:
 5. Check 320/375/768/desktop widths, dialog focus containment, Escape/close focus restoration, visible errors/loading/success, and Save access with the mobile keyboard.
 
 Daily dashboard totals/goals arrive in Phase 4; the history calendar and streaks arrive in Phase 5.
+
+## Phase 4 — dashboard and goals
+
+Run `supabase/migrations/202610120003_daily_goals.sql` once in SQL Editor after migrations 001 and 002. It adds owner-only goal history and an authenticated, RLS-preserving daily-total function. Open `/dashboard` to see consumed/goal/remaining/progress and meal groups. The summary covers all saved entries, including entries beyond the visible page. Open `/settings` to save a goal and effective date. A second save for that date replaces that row; earlier dates retain their goals.
+
+Typecheck, lint and all 30 tests pass. The production build remains blocked by Turbopack worker-port permissions after the approved retry. Live database and browser checks remain pending:
+
+1. Apply migration 003 and run `supabase/tests/daily_goals.sql` in SQL Editor. It rolls back its test users/data, checks RLS in both directions, rejects ownership transfer and nonpositive goals, verifies same-date upserts/historical goals, and tests exact totals for 25 entries plus edit/delete changes.
+2. Compare a day before and after your goal's effective date on Dashboard; verify the 2,000 fallback before your first goal.
+3. Log, edit and delete from Dashboard/Food and check the summary refreshes. Exceed your goal; remaining becomes negative and progress text exceeds 100%.
+4. Check Today/Food/Settings navigation, loading/error/success states, and 320/375/768/desktop layouts. History remains unavailable until Phase 5.

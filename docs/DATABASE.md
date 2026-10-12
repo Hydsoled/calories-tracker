@@ -103,3 +103,6 @@ For profile creation through a trigger, use a narrowly scoped, secure `SECURITY 
 - Test manual overrides and historical snapshot persistence.
 - Test date boundaries and streak changes after deleting a day's only entry.
 - Never perform schema mutations from browser code.
+
+## Phase 4 aggregate function
+`daily_food_total(selected_date date)` returns the exact PostgreSQL numeric sum for the verified user's saved local date, with zero for no entries. It is `SECURITY INVOKER`, has a fixed empty search path, filters by `auth.uid()`, and retains food_entries RLS. Only authenticated clients have execute permission. This keeps totals complete even when the visible log is paginated. The daily_goals unique `(user_id, effective_date)` index supports the descending effective-date query without another redundant index.
