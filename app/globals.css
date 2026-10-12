@@ -44,3 +44,8 @@ a:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
 @media (min-width: 768px) {
   .food-dialog { inset: 0; margin: auto; border-radius: 1rem; }
 }
+
+/* Native date/select controls must shrink within narrow mobile forms. */
+input, select { min-width: 0; max-width: 100%; }
+select:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.food-dialog h2 { overflow-wrap: anywhere; }

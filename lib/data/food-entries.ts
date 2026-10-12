@@ -1,13 +1,11 @@
-import { z } from "zod";
+import { getProfile } from "./profile";
 import { requireUser } from "../supabase/require-user";
-import { timezoneSchema, calendarDaySchema, localDay, localDateTime } from "../dates/local-day";
+import { calendarDaySchema, localDay, localDateTime } from "../dates/local-day";
 import { foodEntryRowSchema } from "./food-entry-model";
 
 export async function getFoodPageData(page: number, selectedDate?: string) {
   const { supabase, user } = await requireUser();
-  const profile = await supabase.from("profiles").select("timezone").eq("id", user.id).single();
-  if (profile.error) throw new Error("Could not load your profile. Check that the profiles migration was applied.");
-  const timezone = z.object({ timezone: timezoneSchema }).parse(profile.data).timezone;
+  const { timezone } = await getProfile();
   const now = new Date();
   const selected = calendarDaySchema.safeParse(selectedDate);
   const day = selected.success ? selected.data : localDay(now, timezone);

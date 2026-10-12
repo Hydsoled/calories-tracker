@@ -16,5 +16,5 @@ export async function GET(request: NextRequest) {
         }
         catch { /* Show a recoverable public error below. */ }
     }
-    return NextResponse.redirect(new URL("/login?error=confirmation", origin));
+    return NextResponse.redirect(new URL("/login?error=confirmation", origin), { headers: { "Cache-Control": "private, no-store" } });
 }

@@ -66,12 +66,12 @@ export function FoodLogDialog({ mode, food, original, defaultTime, timezone, onC
         </>}
         {(mode === "quick_add" || override) && numberField(mode === "quick_add" ? "Total calories" : "Manual total calories", mode === "quick_add" ? "totalCalories" : "totalOverride", total, setTotal)}
         <div className="space-y-1"><label htmlFor="meal" className="text-sm font-medium">Meal</label><select id="meal" value={meal} onChange={(e) => setMeal(mealTypeSchema.parse(e.target.value))} className="min-h-11 w-full rounded-xl border border-border bg-card px-3">{["breakfast", "lunch", "dinner", "snack"].map((value) => <option key={value}>{value}</option>)}</select></div>
-        <div className="space-y-1"><label htmlFor="consumedLocalTime" className="text-sm font-medium">Date and time ({timezone})</label><Input id="consumedLocalTime" type="datetime-local" min="1900-01-01T00:00" required value={time} onChange={(e) => setTime(e.target.value)} aria-describedby="time-help" /><p id="time-help" className="text-xs text-muted-foreground">Uses your profile timezone. Repeated clock-change times use the earlier occurrence.</p></div>
+        <div className="space-y-1"><label htmlFor="consumedLocalTime" className="text-sm font-medium">Date and time ({timezone})</label><Input id="consumedLocalTime" type="datetime-local" min="1900-01-01T00:00" required value={time} onChange={(e) => setTime(e.target.value)} aria-invalid={!!state.fields?.consumedLocalTime} aria-describedby="time-help consumed-time-error" /><p id="consumed-time-error" className="text-sm text-destructive">{state.fields?.consumedLocalTime}</p><p id="time-help" className="text-xs text-muted-foreground">Uses your profile timezone. Repeated clock-change times use the earlier occurrence.</p></div>
       </fieldset>
       <p role="status" className="text-lg font-semibold">{preview === undefined ? "Enter valid values to preview calories." : `${preview} kcal${override && mode !== "quick_add" ? " (manual total)" : ""}`}</p>
       <p className="text-xs text-muted-foreground">Use at most three decimal places. Calories are estimates and may vary by recipe or portion.</p>
       {state.error && <p role="alert" className="text-sm text-destructive">{state.error}</p>}
-      <div className="sticky bottom-0 bg-card py-3"><Button className="w-full" disabled={pending || preview === undefined}>{pending ? "Saving…" : "Save food entry"}</Button></div>
+      <div className="sticky bottom-0 bg-card py-3"><Button className="w-full" disabled={pending}>{pending ? "Saving…" : "Save food entry"}</Button></div>
     </form></div>
   </dialog>;
 }

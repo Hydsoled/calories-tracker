@@ -106,3 +106,11 @@ For profile creation through a trigger, use a narrowly scoped, secure `SECURITY 
 
 ## Phase 4 aggregate function
 `daily_food_total(selected_date date)` returns the exact PostgreSQL numeric sum for the verified user's saved local date, with zero for no entries. It is `SECURITY INVOKER`, has a fixed empty search path, filters by `auth.uid()`, and retains food_entries RLS. Only authenticated clients have execute permission. This keeps totals complete even when the visible log is paginated. The daily_goals unique `(user_id, effective_date)` index supports the descending effective-date query without another redundant index.
+
+## Phase 5 history queries
+Migration 004 adds two authenticated SECURITY INVOKER functions with fixed empty search paths and explicit auth.uid() ownership filters. Existing food_entries RLS remains active.
+
+- `monthly_food_totals(month_start, month_end)` returns each logged date's complete numeric total and entry count in the requested month.
+- `logged_food_dates(before_date)` returns distinct dates descending, with an optional exclusive cursor for pagination. The application additionally restricts streak inputs to dates on/before the current profile-local today.
+
+Profile updates change only display_name/timezone and the timestamp trigger. No migration or action silently rewrites historical food-entry dates.

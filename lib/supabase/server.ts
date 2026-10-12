@@ -1,3 +1,4 @@
+import type { Database } from "@/types/database";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
@@ -9,7 +10,7 @@ export async function createClient() {
     // Supabase checks token expiry using the current clock. Run it only for a real request.
     await connection();
     const cookieStore = await cookies();
-    return createServerClient(config.url, config.key, {
+    return createServerClient<Database>(config.url, config.key, {
         cookies: {
             getAll: () => cookieStore.getAll(),
             setAll(cookiesToSet) {

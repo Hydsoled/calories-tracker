@@ -4,7 +4,7 @@ Mobile-first Next.js App Router application. Product, architecture, database and
 
 ## Current phase
 
-Foundation and Supabase Auth: landing page, semantic theme, shadcn-style Button/Input primitives, registration, login, confirmation, password recovery/update, sign out, session-refresh Proxy and protected dashboard shell. The existing root `app/` structure is retained. Green and destructive tokens use darker shades than the suggested palette for readable text contrast. Phase 2 also provides the five-food catalog, bilingual search, validated snapshot inputs and decimal-safe calorie calculations. Phase 3 adds food logging screens and persistence; Phase 4 adds goals and dashboard totals; history calendar, streaks and profile/timezone editing are deferred.
+Foundation and Supabase Auth: landing page, semantic theme, shadcn-style Button/Input primitives, registration, login, confirmation, password recovery/update, sign out, session-refresh Proxy and protected dashboard shell. The existing root `app/` structure is retained. Green and destructive tokens use darker shades than the suggested palette for readable text contrast. Phase 2 also provides the five-food catalog, bilingual search, validated snapshot inputs and decimal-safe calorie calculations. Phase 3 adds food logging screens and persistence; Phase 4 adds goals and dashboard totals; Phase 5 adds history, streaks and profile/timezone editing; final production verification remains Phase 6.
 
 ## Setup
 
@@ -70,3 +70,17 @@ Typecheck, lint and all 30 tests pass. The production build remains blocked by T
 2. Compare a day before and after your goal's effective date on Dashboard; verify the 2,000 fallback before your first goal.
 3. Log, edit and delete from Dashboard/Food and check the summary refreshes. Exceed your goal; remaining becomes negative and progress text exceeds 100%.
 4. Check Today/Food/Settings navigation, loading/error/success states, and 320/375/768/desktop layouts. History remains unavailable until Phase 5.
+
+## Phase 5 — history, timezone and streaks
+
+Run `supabase/migrations/202610120004_history.sql` once in SQL Editor after migrations 001–003. Settings now lets you edit your display name and IANA timezone. The History tab opens a month calendar with logged-day markers, day totals/effective goals and paginated editable logs. Dashboard and History show current and longest streaks. Current streak ends today or yesterday when today is unfinished; future logs do not contribute yet.
+
+Changing timezone does not rewrite saved log dates. Editing an old entry recalculates its saved date using the current timezone. History always groups by saved dates. Keyboard users can Tab to calendar dates, use arrows/Home/End to move focus, and Enter to select a day.
+
+Typecheck, lint and all 38 tests pass. Production-build verification remains blocked by the previously observed Turbopack worker-port permissions; it was not rerun this phase. Live/database/browser verification is pending:
+
+1. Apply migration 004. Run `supabase/tests/history.sql` in SQL Editor; it rolls back test data and checks aggregate isolation, distinct-date cursor behavior, profile ownership, stable saved dates after timezone changes, explicit edited-date recalculation, and removal of a day's last logged entry.
+2. Change timezone and display name in Settings. Verify your greeting changes, new consumption times use the selected zone, and existing calendar markers stay on their original saved dates.
+3. Browse months/dates, check effective goals and full totals, edit/delete earlier entries, and ensure calendar markers and streaks refresh.
+4. Verify today/yesterday streaks, longest older streaks, duplicate logs on a day, missing days and removal of the day's last entry.
+5. Check calendar keyboard controls, focus, labels, loading/error/success states and 320/375/768/desktop layouts. Run the production build locally before the Phase 6 gate.
