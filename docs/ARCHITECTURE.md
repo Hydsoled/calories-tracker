@@ -86,7 +86,9 @@ Each entry has `entry_type` (`catalog`, `custom`, `quick_add`), optional `catalo
 5. Server authenticates user, validates all fields and enum values, recomputes non-overridden totals, and inserts a snapshot.
 6. Server returns success; UI refreshes dashboard/history.
 
-Use a decimal-safe strategy (e.g. integer thousandths or a tested decimal library) for persisted calculations. Store `numeric` values in PostgreSQL; do not rely on binary floating-point equality.
+Shared utilities in root `lib/nutrition/` use BigInt integer thousandths for calculation. Inputs accept numbers or plain decimal strings with at most three fractional digits, matching `numeric(12,3)` (maximum 999,999,999.999). Reject blank strings, negative/non-finite values, excess precision and out-of-range calculated totals. Round calculated totals half up once to 0.001 kcal; whole-calorie display rounding never changes the snapshot. Explicit total overrides, including zero, win until omitted. No automatic unit conversion is performed.
+
+`createFoodSnapshot` validates catalog/custom/Quick Add shapes and constructs independent nutritional snapshots. Catalog names, units and base quantities come from the catalog; rate and total may be overridden. Quick Add has null measurement fields and `isTotalOverride: true`. Server ownership and consumption dates are assigned separately in Phase 3. Store `numeric` values in PostgreSQL; do not rely on binary floating-point equality.
 
 ## Authentication
 - Use Supabase Auth and `@supabase/ssr`.
@@ -122,3 +124,11 @@ Use a decimal-safe strategy (e.g. integer thousandths or a tested decimal librar
 4. Dashboard totals and goals.
 5. History, timezone handling, and streaks.
 6. Responsive polish, tests, deployment.
+
+## Phase 3 implementation
+- `/food` has bilingual catalog search, custom food, Quick Add, a native modal dialog styled as a bottom sheet on mobile, and paginated entries for a selected saved local date (20 per page).
+- `actions/food-entries.ts` authenticates before every write, validates the strict mutation envelope, reads the verified profile timezone, recomputes nutritional snapshots and filters update/delete by both entry ID and owner. RLS is the independent database ownership boundary.
+- New catalog entries copy current defaults; edits reuse the owned entry's saved name, unit and base quantity. Editing an entry cannot change its type or catalog ID. Custom entries may edit their own name, unit and reference quantity.
+- UI submits `consumedLocalTime` as a wall-clock string. `lib/dates/local-day.ts` resolves it in the profile's IANA timezone, rejects nonexistent daylight-saving times and chooses the earlier occurrence when a local time repeats. UTC instants and server-derived local-date snapshots are saved. Changing timezone alone never rewrites saved dates.
+- Saves and deletes revalidate Food, Dashboard and History. Dashboard summaries, goal controls, history calendar and streaks remain later phases.
+- Native `dialog.showModal()` provides modal focus containment and Escape handling; close restores focus to the launching control. Submission keeps the form open on errors and closes it after success. Delete requests require confirmation.

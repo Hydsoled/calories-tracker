@@ -1,26 +1,46 @@
 @import "tailwindcss";
-
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8faf9;
+  --foreground: #111827;
+  --card: #ffffff;
+  --primary: #15803d;
+  --primary-foreground: #ffffff;
+  --muted: #f1f5f2;
+  --muted-foreground: #596373;
+  --border: #e5e7eb;
+  --destructive: #b91c1c;
+  --ring: #15803d;
 }
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-ring: var(--ring);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
+body { background: var(--background); color: var(--foreground); font-family: var(--font-geist-sans), sans-serif; }
+a:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.food-dialog {
+  position: fixed;
+  inset: auto 0 0;
+  margin: auto auto 0;
+  width: min(100%, 36rem);
+  max-width: 100%;
+  max-height: 90dvh;
+  overflow-y: auto;
+  border-radius: 1rem 1rem 0 0;
+  padding-bottom: env(safe-area-inset-bottom);
 }
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.food-dialog::backdrop { background: rgb(17 24 39 / 45%); }
+@media (min-width: 768px) {
+  .food-dialog { inset: 0; margin: auto; border-radius: 1rem; }
 }
